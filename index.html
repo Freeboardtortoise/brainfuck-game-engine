@@ -1,0 +1,489 @@
+can you write me a readme.md for this code:?
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Brainf**k IDE — LeetCode Style (Tape = Framebuffer)</title>
+<style>
+  :root{
+    --bg:#0e1116; --elev:#151a21; --pane:#0f141b; --text:#e6edf3; --muted:#94a3b8;
+    --acc:#16a34a; --acc-2:#38bdf8; --bad:#ef4444; --border:#263042;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+
+  /* Top bar */
+  .topbar{
+    height:52px; display:flex; gap:8px; align-items:center; padding:0 12px;
+    border-bottom:1px solid var(--border); background:linear-gradient(180deg,var(--elev),var(--pane));
+    position:sticky; top:0; z-index:5;
+  }
+  .brand{font-weight:700; letter-spacing:.4px; margin-right:8px}
+  .spacer{flex:1}
+  .btn{
+    background:#1b2430; color:var(--text); border:1px solid var(--border); padding:6px 10px; border-radius:6px;
+    cursor:pointer; transition:.15s ease; user-select:none
+  }
+  .btn:hover{border-color:#3a475e}
+  .btn.primary{background:var(--acc); border-color:#0f8a3c; color:#04130a}
+  .btn.warn{background:#1b2430; border-color:#3a475e; color:#fca5a5}
+  .btn.bad{background:var(--bad); border-color:#b91c1c; color:#fff}
+  .btn.small{padding:4px 8px;font-size:12px}
+  .ctrls{display:flex; gap:8px; align-items:center}
+  .sep{width:1px; height:26px; background:var(--border); margin:0 6px}
+
+  /* Layout: two columns like LeetCode */
+  .wrap{height:calc(100% - 52px); display:grid; grid-template-columns: 1fr 1fr; gap:0}
+  .left, .right{min-height:0}
+  .left{border-right:1px solid var(--border); display:flex; flex-direction:column}
+  .section-title{padding:8px 12px; border-bottom:1px solid var(--border); color:var(--muted); background:var(--elev)}
+  .editor-wrap{flex:1; min-height:0; display:flex; flex-direction:column}
+  textarea#editor{
+    flex:1; min-height:200px; width:100%; resize:none; border:0; outline:0; padding:12px;
+    background:var(--pane); color:var(--text); font-size:13px;
+  }
+
+  /* Keypad */
+  .keypad-wrap{border-top:1px solid var(--border); background:var(--elev)}
+  .keypad-head{display:flex; align-items:center; gap:8px; padding:8px 12px; color:var(--muted)}
+  .keypad{display:flex; gap:6px; flex-wrap:wrap; padding:8px 12px 12px}
+  .key{width:36px; height:32px; display:grid; place-items:center; border:1px solid var(--border); background:#1a2230;
+       border-radius:6px; cursor:pointer}
+  .key:hover{border-color:#3a475e}
+  .hidden{display:none}
+
+  /* Right side tabs */
+  .tabs{display:flex; gap:2px; padding:8px; border-bottom:1px solid var(--border); background:var(--elev)}
+  .tab{padding:6px 10px; border:1px solid var(--border); background:#121821; border-radius:6px; cursor:pointer; color:var(--muted)}
+  .tab.active{color:var(--text); background:#182231; border-color:#3a475e}
+  .tabpanes{height:100%; position:relative}
+  .pane{position:absolute; inset:0; display:none}
+  .pane.active{display:block}
+  #console{padding:12px; white-space:pre-wrap; overflow:auto; height:100%; background:var(--pane)}
+  #tape{padding:10px; overflow:auto; height:100%; background:var(--pane)}
+  #tape .cell{display:inline-block; min-width:28px; padding:4px 6px; margin:2px; text-align:center; border:1px solid var(--border); border-radius:6px; color:#9fe8b3; background:#0e141c}
+  #tape .cell.focus{background:#153d28; color:#eaffef; border-color:#2a6b45}
+  .fb-wrap{height:100%; display:flex; align-items:center; justify-content:center; background:var(--pane)}
+  canvas#fb{border:1px solid #2a6b45; background:#000}
+
+  /* Status bar */
+  .status{
+    height:32px; display:flex; gap:16px; align-items:center; padding:0 12px;
+    border-top:1px solid var(--border); background:var(--elev); color:var(--muted)
+  }
+
+  /* Inputs */
+  input[type="file"]{display:none}
+  input[type="range"]{accent-color:var(--acc)}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">🧠 Brainf**k Game Engine</div>
+    <div class="ctrls">
+      <button class="btn primary" id="btnRun">Run</button>
+      <button class="btn" id="btnStep">Step</button>
+      <button class="btn warn" id="btnPause">Pause</button>
+      <button class="btn bad" id="btnReset">Reset</button>
+      <div class="sep"></div>
+      <label>Speed
+        <input id="speed" type="range" min="1" max="500" value="200" style="vertical-align:middle">
+      </label>
+      <div class="sep"></div>
+      <button class="btn small" id="btnSave">Save</button>
+      <button class="btn small" id="btnLoad">Load</button>
+      <button class="btn small" id="btnExport">Export</button>
+      <label class="btn small" for="fileImport">Import</label>
+      <input id="fileImport" type="file" accept=".txt,.bf,.json,.html,.bfi"/>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn small" id="btnTheme">Theme</button>
+  </div>
+
+  <div class="wrap">
+    <!-- LEFT: Editor -->
+    <div class="left">
+      <div class="section-title">Editor</div>
+      <div class="editor-wrap">
+        <textarea id="editor" spellcheck="false" placeholder="Write Brainf**k here...
+Example to paint screen gradually:
++[>+.]
+
+Another example:
++++++[>+++++.<-]  (paints stripes)"></textarea>
+        <div class="keypad-wrap">
+          <div class="keypad-head">
+            <strong>Keypad</strong>
+            <button class="btn small" id="kpToggle">Toggle</button>
+            <span style="opacity:.7">Click to insert at cursor</span>
+          </div>
+          <div id="keypad" class="keypad">
+            <div class="key" data-k=">">&gt;</div>
+            <div class="key" data-k="<">&lt;</div>
+            <div class="key" data-k="+">+</div>
+            <div class="key" data-k="-">-</div>
+            <div class="key" data-k=".">.</div>
+            <div class="key" data-k=",">,</div>
+            <div class="key" data-k="[">[</div>
+            <div class="key" data-k="]">]</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Tabs -->
+    <div class="right" style="display:flex; flex-direction:column; min-height:0">
+      <div class="tabs">
+        <div class="tab active" data-pane="fb">Framebuffer</div>
+        <div class="tab" data-pane="console">Console</div>
+        <div class="tab" data-pane="tape">Tape</div>
+      </div>
+      <div class="tabpanes" style="flex:1; min-height:0">
+        <div id="pane-fb" class="pane active">
+          <div class="fb-wrap">
+            <canvas id="fb" width="320" height="200"></canvas>
+          </div>
+        </div>
+        <div id="pane-console" class="pane">
+          <div id="console"></div>
+        </div>
+        <div id="pane-tape" class="pane">
+          <div id="tape"></div>
+        </div>
+      </div>
+      <div class="status">
+        <div>PC: <span id="statPC">0</span></div>
+        <div>PTR: <span id="statPTR">0</span></div>
+        <div>Cell: <span id="statCELL">0</span></div>
+        <div>Hz: <span id="statHz">—</span></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ---------------------------
+   Config: Tape == Framebuffer
+   --------------------------- */
+const canvas = document.getElementById('fb');
+const ctx = canvas.getContext('2d', { alpha:false });
+const pixelSize = 4; // scale block size
+const widthPixels  = Math.floor(canvas.width  / pixelSize);
+const heightPixels = Math.floor(canvas.height / pixelSize);
+const TAPE_LEN = 100000; // large enough for “extra storage”
+let memory = new Uint16Array(TAPE_LEN); // full BF memory
+const FRAMEBUFFER_WIDTH = 320;
+const FRAMEBUFFER_HEIGHT = 200;
+const VISIBLE_FB_CELLS = FRAMEBUFFER_WIDTH * FRAMEBUFFER_HEIGHT;
+
+let pointer = 0;
+let code = "";
+let pc = 0;
+let running = false;
+let stepTimer = null;
+let cycles = 0;
+let lastTick = performance.now();
+
+let inputBuffer = [];
+
+/* Palette (expand as needed) */
+const palette = [
+  "#000000", "#ff3b30", "#34c759", "#0a84ff",
+  "#ffd60a", "#64d2ff", "#bf5af2", "#ffffff",
+  "#94a3b8", "#22d3ee", "#f97316", "#10b981",
+  "#eab308", "#f43f5e", "#a3e635", "#c084fc"
+];
+function colorFromValue(v){ return palette[v % palette.length]; }
+
+/* ---- UI Elements ---- */
+const elEditor   = document.getElementById('editor');
+const elConsole  = document.getElementById('console');
+const elTape     = document.getElementById('tape');
+const elPC       = document.getElementById('statPC');
+const elPTR      = document.getElementById('statPTR');
+const elCELL     = document.getElementById('statCELL');
+const elHz       = document.getElementById('statHz');
+const elSpeed    = document.getElementById('speed');
+
+/* ---- Toolbar events ---- */
+document.getElementById('btnRun').onclick   = run;
+document.getElementById('btnStep').onclick  = () => { running=false; stepOnce(true); };
+document.getElementById('btnPause').onclick = () => running=false;
+document.getElementById('btnReset').onclick = resetAll;
+document.getElementById('btnSave').onclick  = saveLocal;
+document.getElementById('btnLoad').onclick  = loadLocal;
+document.getElementById('btnExport').onclick= exportFile;
+document.getElementById('fileImport').onchange = importFile;
+document.getElementById('btnTheme').onclick = toggleTheme;
+
+/* ---- Tabs ---- */
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    const name = t.dataset.pane;
+    document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
+    document.getElementById('pane-'+name).classList.add('active');
+  });
+});
+
+/* ---- Keypad ---- */
+document.getElementById('kpToggle').onclick = ()=>{
+  document.getElementById('keypad').classList.toggle('hidden');
+};
+document.querySelectorAll('#keypad .key').forEach(k=>{
+  k.addEventListener('click', ()=>{
+    insertAtCursor(elEditor, k.dataset.k);
+  });
+});
+function insertAtCursor(textarea, str){
+  const start = textarea.selectionStart, end = textarea.selectionEnd;
+  const v = textarea.value;
+  textarea.value = v.slice(0,start) + str + v.slice(end);
+  textarea.selectionStart = textarea.selectionEnd = start + str.length;
+  textarea.focus();
+}
+
+/* ---- Rendering ---- */
+function clearFB(){
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+}
+  function drawPixelIndex(idx){
+    if(idx < 0 || idx >= VISIBLE_FB_CELLS) return; // only visible part
+    const x = idx % FRAMEBUFFER_WIDTH;
+    const y = Math.floor(idx / FRAMEBUFFER_WIDTH);
+    ctx.fillStyle = colorFromValue(memory[idx]);
+    ctx.fillRect(x*pixelSize, y*pixelSize, pixelSize, pixelSize);
+}
+
+function drawAll(){
+  // fast full redraw
+  const w = widthPixels, h = heightPixels;
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      const idx = y*w + x;
+      ctx.fillStyle = colorFromValue(memory[idx]);
+      ctx.fillRect(x*pixelSize, y*pixelSize, pixelSize, pixelSize);
+    }
+  }
+}
+
+/* ---- Tape View ---- */
+function renderTape(limit=1000){
+  // Render centered around pointer with a cap to keep DOM light
+  elTape.innerHTML = '';
+  const start = Math.max(0, pointer-200);
+  const end   = Math.min(TAPE_LEN, start + limit);
+  for(let i=start; i<end; i++){
+    const d = document.createElement('span');
+    d.className = 'cell' + (i===pointer?' focus':'');
+    d.textContent = memory[i];
+    elTape.appendChild(d);
+  }
+}
+
+/* ---- Interpreter ---- */
+let bracketMap = null;
+function buildBracketMap(src){
+  const stack = []; const map = new Map();
+  for(let i=0;i<src.length;i++){
+    const c = src[i];
+    if(c==='[') stack.push(i);
+    else if(c===']'){
+      const j = stack.pop();
+      if(j===undefined) throw new Error("Unmatched ']' at "+i);
+      map.set(j,i); map.set(i,j);
+    }
+  }
+  if(stack.length) throw new Error("Unmatched '[' at "+stack.pop());
+  return map;
+}
+
+function resetAll(){
+  running = false;
+  memory.fill(0);
+  pointer = 0;
+  pc = 0;
+  elConsole.textContent = '';
+  updateStatus();
+  clearFB();
+  renderTape();
+}
+
+function sanitized(src){ return src.replace(/[^\>\<\+\-\.\,\[\]]/g,''); }
+
+function run(){
+  try{
+    code = sanitized(elEditor.value);
+    bracketMap = buildBracketMap(code);
+  }catch(e){
+    alert(e.message); return;
+  }
+  resetAll();
+  running = true;
+  loopAsync();
+}
+
+function stepOnce(render = false){
+  if(pc>=code.length) return;
+  const cmd = code[pc];
+
+  switch(cmd){
+    case '>':
+      pointer++;
+      if(pointer >= memory.length) {
+          // Optionally expand memory dynamically
+          const tmp = new Uint16Array(memory.length*2);
+          tmp.set(memory);
+          memory = tmp;
+      }
+      break;
+    
+    case '<':
+        pointer = Math.max(0, pointer-1); // don’t go negative
+    break;
+
+    case '+': memory[pointer] = (memory[pointer] + 1) & 0xffff; break; // allow >255 palette wrap via & 0xffff
+    case '-': memory[pointer] = (memory[pointer] - 1 + 65536) & 0xffff; break;
+    case '.':
+      // Console output
+      elConsole.textContent += String.fromCharCode(memory[pointer] & 0xFF);
+
+      // Framebuffer update
+      drawPixelIndex(pointer);
+      break;
+    case ',':
+      if (inputBuffer.length > 0) {
+        memory[pointer] = inputBuffer.shift();
+      } else {
+        memory[pointer] = 0; // or block until input arrives
+      }
+      break;
+
+
+    case '[':
+      if(memory[pointer] === 0){
+        pc = bracketMap.get(pc); // jump to matching ]
+      }
+      break;
+    case ']':
+      if(memory[pointer] !== 0){
+        pc = bracketMap.get(pc); // jump back to matching [
+      }
+      break;
+  }
+  pc++;
+  cycles++;
+
+  if(render){
+    drawPixelIndex(pointer); // cheap visual nudge
+    renderTape();
+  }
+  updateStatus();
+}
+
+function loopAsync(){
+  if(!running){ return; }
+  const speed = Number(elSpeed.value); // higher = faster
+  // Run a burst per tick for performance
+  let burst = speed; // rough: 1..200 ops per tick
+  while(burst-- && running && pc < code.length){
+    stepOnce(false);
+  }
+  // UI updates throttled
+  if(rAF_budget()){
+    renderTape();
+  }
+  if(pc >= code.length){ running=false; }
+  if(running) requestAnimationFrame(loopAsync);
+}
+
+/* simple perf meter */
+function rAF_budget(){
+  const now = performance.now();
+  if(now - lastTick > 120){
+    const hz = Math.round((cycles*1000)/(now-lastTick));
+    elHz.textContent = hz + " ops/s";
+    cycles = 0; lastTick = now;
+    return true;
+  }
+  return false;
+}
+
+function updateStatus(){
+  elPC.textContent = pc;
+  elPTR.textContent = pointer;
+  elCELL.textContent = memory[pointer];
+}
+
+/* ---- Save/Load/Export/Import ---- */
+const LS_KEY = "bf_leet_ide_code_v1";
+function saveLocal(){
+  localStorage.setItem(LS_KEY, elEditor.value);
+}
+function loadLocal(){
+  const v = localStorage.getItem(LS_KEY);
+  if(v!=null) elEditor.value = v;
+}
+function exportFile(){
+  const payload = {
+    kind:"bf-ide",
+    version:1,
+    code: elEditor.value
+  };
+  const blob = new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = "project.bfi";
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+async function importFile(ev){
+  const file = ev.target.files[0];
+  if(!file) return;
+  const text = await file.text();
+  try{
+    if(file.name.endsWith(".bfi") || text.trim().startsWith("{")){
+      const obj = JSON.parse(text);
+      if(obj.code) elEditor.value = obj.code;
+    }else{
+      // treat as raw BF
+      elEditor.value = text;
+    }
+  }catch{
+    // fallback raw
+    elEditor.value = text;
+  }
+  ev.target.value = "";
+}
+
+/* ---- Theme ---- */
+let dark = true;
+function toggleTheme(){
+  // cute invert: just swap palette & backgrounds slightly
+  dark = !dark;
+  document.documentElement.style.filter = dark ? "none" : "invert(1) hue-rotate(180deg)";
+}
+
+/* ---- Init ---- */
+clearFB();
+renderTape();
+updateStatus();
+loadLocal();
+window.addEventListener("keydown", (e) => {
+if (document.activeElement === elEditor) return; // don’t steal while editing code
+if (e.key.length === 1) { // printable characters
+  inputBuffer.push(e.key.charCodeAt(0));
+  elConsole.textContent += e.key; // optional echo to console
+} else if (e.key === "Enter") {
+  inputBuffer.push(10); // newline
+  elConsole.textContent += "\n";
+}
+});
+
+</script>
+</body>
+</html>
+
