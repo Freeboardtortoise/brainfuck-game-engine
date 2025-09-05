@@ -1,6 +1,45 @@
-# Docker Example
+# 🧠 Brainf**k IDE — LeetCode Style (Tape = Framebuffer)
 
-In this example, we show how you can use [Docker with CodeSandbox](https://codesandbox.io/post/introducing-docker-support-in-codesandbox). Check [the Dockerfile](./.devcontainer/Dockerfile) to see how we configure the container of this sandbox. You can simply edit it yourself and the container will rebuild. Make sure to fork the sandbox first by clicking "Fork" in the top left corner.
+A **web-based Brainf**k IDE** with a modern LeetCode-inspired interface.  
+It features a **tape-as-framebuffer visualizer**, interactive console, and real-time memory/tape view for rapid development of Brainf**k programs that manipulate pixels directly.
 
-- Every new terminal will run inside this new container, open a new terminal with CTRL ~
-- We set up an example sandbox task that runs `whereis htop`. Typically this would be where you run `yarn run serve`. You can edit it in [tasks.json](./.codesandbox/tasks.json)
+**Live Demo:** [https://freeboardtortoise.github.io/brainfuck-game-engine](https://freeboardtortoise.github.io/brainfuck-game-engine)
+
+---
+
+## Features
+
+- **Two-column layout** (Editor + Tabs) for coding and visualization
+- **Tape as Framebuffer**  
+  Use the Brainf**k tape to draw graphics on a 320×200 canvas
+- **Interactive console** for I/O via `.` and `,`
+- **Memory/Tape viewer** shows values and highlights the current pointer
+- **Toolbar controls**:
+  - Run, Step, Pause, Reset
+  - Adjust execution speed
+  - Save, Load, Export, and Import projects
+  - Toggle themes (light/dark)
+- **Keypad** for quick insertion of Brainf**k commands
+- **Performance-friendly**: throttled rendering, expandable memory
+
+---
+
+## Usage
+
+1. Open the live demo [here](https://freeboardtortoise.github.io/brainfuck-game-engine) **or** open `index.html` locally in a modern browser.
+2. Write your Brainf**k code in the editor.
+3. Use the **Run**, **Step**, **Pause**, or **Reset** buttons to control execution.
+4. Monitor output via:
+   - **Framebuffer tab** — graphics output
+   - **Console tab** — text output
+   - **Tape tab** — full memory visualization
+5. Adjust **speed** using the slider to control execution bursts.
+6. Save and load code locally or export/import `.bfi` JSON files.
+
+---
+
+## Examples
+
+```bf
++[>+.]  # Gradually paints the screen
++++++[>+++++.<-]  # Paints stripes
